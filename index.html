@@ -60,7 +60,7 @@ button.main:disabled{opacity:.5;cursor:default}
 </section>
 
 <script>
-const WORKER_HOST = "simple-cast.user-x45.workers.dev";
+const WORKER_HOST = "simplecast.YOUR_SUBDOMAIN.workers.dev";
 
 const ICE = { iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }, { urls: "stun:stun.l.google.com:19302" }] };
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -222,10 +222,16 @@ async function senderOnMessage(msg) {
     await pc.setLocalDescription({ type: "answer", sdp: tuneOpus(answer.sdp) });
     sender.ws.send(JSON.stringify({ type: "answer", sdp: pc.localDescription }));
     pc.getSenders().forEach(function (s) {
-      if (!s.track || s.track.kind !== "audio") return;
+      if (!s.track) return;
       const params = s.getParameters();
       if (!params.encodings || !params.encodings.length) params.encodings = [{}];
-      params.encodings[0].maxBitrate = 256000;
+      if (s.track.kind === "audio") {
+        params.encodings[0].maxBitrate = 256000;
+      } else {
+        params.encodings[0].maxBitrate = 12000000;
+        params.encodings[0].maxFramerate = 60;
+        params.degradationPreference = "balanced";
+      }
       s.setParameters(params).catch(function () {});
     });
   } else if (msg.type === "candidate" && sender.pc) {
@@ -248,7 +254,11 @@ async function startSender() {
   let stream;
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
+      video: {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        frameRate: { ideal: 60, max: 60 }
+      },
       audio: {
         echoCancellation: false,
         noiseSuppression: false,
