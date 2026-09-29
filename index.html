@@ -60,13 +60,30 @@ button.main:disabled{opacity:.5;cursor:default}
 </section>
 
 <script>
-const WORKER_HOST = "simple-cast.user-x45.workers.dev";
+const WORKER_HOST = "simplecast.YOUR_SUBDOMAIN.workers.dev";
 
 const ICE = { iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }, { urls: "stun:stun.l.google.com:19302" }] };
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 function wsUrl(code, role) {
   return "wss://" + WORKER_HOST + "/ws?code=" + code + "&role=" + role;
+}
+
+function tuneOpus(sdp) {
+  const m = sdp.match(/a=rtpmap:(\d+) opus\/48000\/2/);
+  if (!m) return sdp;
+  const pt = m[1];
+  const wanted = ["stereo=1", "sprop-stereo=1", "maxaveragebitrate=510000", "useinbandfec=1", "usedtx=0"];
+  const re = new RegExp("a=fmtp:" + pt + " ([^\\r\\n]*)");
+  if (re.test(sdp)) {
+    return sdp.replace(re, function (line, params) {
+      const keep = params.split(";").filter(function (p) {
+        return !/^(stereo|sprop-stereo|maxaveragebitrate|usedtx|useinbandfec|cbr)=/.test(p);
+      });
+      return "a=fmtp:" + pt + " " + keep.concat(wanted).join(";");
+    });
+  }
+  return sdp.replace(m[0], m[0] + "\r\na=fmtp:" + pt + " " + wanted.join(";"));
 }
 
 function setStatus(dotId, textId, text, state) {
@@ -127,7 +144,7 @@ async function viewerOnMessage(msg) {
     pc.addTransceiver("video", { direction: "recvonly" });
     pc.addTransceiver("audio", { direction: "recvonly" });
     const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+    await pc.setLocalDescription({ type: "offer", sdp: tuneOpus(offer.sdp) });
     viewer.ws.send(JSON.stringify({ type: "offer", sdp: pc.localDescription }));
   } else if (msg.type === "answer" && viewer.pc) {
     await viewer.pc.setRemoteDescription(msg.sdp);
@@ -202,8 +219,15 @@ async function senderOnMessage(msg) {
     };
     await pc.setRemoteDescription(msg.sdp);
     const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+    await pc.setLocalDescription({ type: "answer", sdp: tuneOpus(answer.sdp) });
     sender.ws.send(JSON.stringify({ type: "answer", sdp: pc.localDescription }));
+    pc.getSenders().forEach(function (s) {
+      if (!s.track || s.track.kind !== "audio") return;
+      const params = s.getParameters();
+      if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+      params.encodings[0].maxBitrate = 256000;
+      s.setParameters(params).catch(function () {});
+    });
   } else if (msg.type === "candidate" && sender.pc) {
     try { await sender.pc.addIceCandidate(msg.candidate); } catch (e) {}
   }
@@ -223,11 +247,21 @@ async function startSender() {
   }
   let stream;
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        channelCount: 2,
+        sampleRate: 48000
+      }
+    });
   } catch (e) {
     setStatus("sdot", "sstatus", "画面の選択がキャンセルされました", "ng");
     return;
   }
+  stream.getAudioTracks().forEach(function (t) { t.contentHint = "music"; });
   sender.stream = stream;
   btn.disabled = true;
   input.disabled = true;
