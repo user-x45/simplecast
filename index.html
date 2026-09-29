@@ -38,6 +38,13 @@ button{font-family:inherit;color:inherit}
 .panel.active{display:flex;flex-direction:column;flex:1;min-height:0}
 #sender.active{justify-content:center;padding-bottom:6vh}
 #sender .card{width:100%;max-width:760px;margin:0 auto}
+#viewer.active{flex-direction:row;gap:16px}
+.side{width:clamp(300px,30vw,380px);display:flex;flex-direction:column}
+.side .tiles{gap:8px;width:100%;max-width:340px}
+.side .tile{flex:1 1 0;min-width:0;width:auto;height:auto;aspect-ratio:5/7}
+.side .tile b{font-size:clamp(22px,2.8vw,38px)}
+.side .row{flex-direction:column;align-items:stretch;margin-top:auto;padding-top:clamp(14px,2.4vh,22px)}
+.side .actions .ghost{flex:1}
 
 .card{background:var(--surface);border:1px solid var(--line);border-radius:28px;padding:clamp(16px,3.2vh,32px) clamp(18px,3vw,36px);flex:none}
 .card h2{font-family:var(--display);font-size:clamp(20px,3.4vh,30px);line-height:1.25;margin:0 0 4px;font-weight:800;letter-spacing:-.01em}
@@ -71,10 +78,20 @@ button{font-family:inherit;color:inherit}
 .main:disabled{opacity:.5;cursor:default}
 .main.stop{background:var(--ng)}
 
-.stage{position:relative;margin-top:clamp(10px,2vh,16px);flex:1;min-height:120px;background:var(--stage);border-radius:24px;overflow:hidden;border:1px solid var(--line)}
+.stage{position:relative;margin-top:0;flex:1;min-width:0;min-height:120px;background:var(--stage);border-radius:24px;overflow:hidden;border:1px solid var(--line)}
 .stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0}
 .stage.live video{opacity:1}
 .hold{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:24px;color:#8A95AB}
+.ctl{position:absolute;right:14px;bottom:14px;display:none;gap:8px}
+.stage.live .ctl{display:flex}
+.ctl button{width:44px;height:44px;border-radius:50%;border:0;background:rgba(10,14,24,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .2s}
+.ctl button:hover{background:rgba(10,14,24,.85)}
+.ctl svg{width:22px;height:22px}
+#muteBtn .on{display:none}
+#muteBtn.unmuted .on{display:block}
+#muteBtn.unmuted .off{display:none}
+.stage:fullscreen{border-radius:0;border:0}
+.stage:-webkit-full-screen{border-radius:0;border:0}
 .hold svg{width:44px;height:44px;margin-bottom:8px;opacity:.7}
 .hold strong{font-size:16px;font-weight:500;color:#C5CCDA}
 .hold span{font-size:13px}
@@ -85,6 +102,12 @@ button{font-family:inherit;color:inherit}
 @media (max-height:640px){
   .lead{display:none}
   .hold span{display:none}
+}
+@media (max-width:760px){
+  #viewer.active{flex-direction:column;gap:0}
+  .side{width:auto;flex:none}
+  .side .tile b{font-size:clamp(22px,8vw,36px)}
+  .stage{margin-top:clamp(10px,2vh,16px)}
 }
 @media (max-width:560px){
   .shell{padding:12px 14px}
@@ -136,11 +159,20 @@ button{font-family:inherit;color:inherit}
       </div>
     </div>
     <div class="stage" id="stage">
-      <video id="video" autoplay playsinline muted controls></video>
+      <video id="video" autoplay playsinline muted></video>
       <div class="hold">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
         <strong>まだ何も映っていません</strong>
-        <span>送信側が共有を始めると、ここに表示されます。音を聞くには、ミュートを解除してください。</span>
+        <span>送信側が共有を始めると、ここに表示されます。映像が始まったら、右下のボタンで音を出せます。</span>
+      </div>
+      <div class="ctl">
+        <button id="muteBtn" aria-label="ミュートを解除" title="ミュートを解除">
+          <svg class="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="m22 9-6 6M16 9l6 6"/></svg>
+          <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>
+        </button>
+        <button id="fsBtn" aria-label="全画面表示" title="全画面表示">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+        </button>
       </div>
     </div>
   </section>
@@ -248,6 +280,30 @@ document.getElementById("copyLink").addEventListener("click", function (e) {
   if (!viewer.code) return;
   const link = location.origin + location.pathname + "#" + viewer.code;
   navigator.clipboard.writeText(link).then(function () { flashLabel(e.target, "コピーしました"); });
+});
+
+document.getElementById("muteBtn").addEventListener("click", function () {
+  const video = document.getElementById("video");
+  video.muted = !video.muted;
+  this.classList.toggle("unmuted", !video.muted);
+  const label = video.muted ? "ミュートを解除" : "ミュートにする";
+  this.setAttribute("aria-label", label);
+  this.title = label;
+});
+
+document.getElementById("fsBtn").addEventListener("click", function () {
+  const stage = document.getElementById("stage");
+  const video = document.getElementById("video");
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  } else if (stage.requestFullscreen) {
+    stage.requestFullscreen().catch(function () {});
+  } else if (stage.webkitRequestFullscreen) {
+    stage.webkitRequestFullscreen();
+  } else if (video.webkitEnterFullscreen) {
+    video.webkitEnterFullscreen();
+  }
 });
 
 function closeViewerPeer() {
