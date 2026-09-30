@@ -90,9 +90,10 @@ button{font-family:inherit;color:inherit}
 .main:disabled{opacity:.5;cursor:default}
 .main.stop{background:var(--ng)}
 
-.stage{position:relative;margin-top:0;flex:1;min-width:0;min-height:120px;background:var(--stage);border-radius:24px;overflow:hidden;border:1px solid var(--line)}
+.stage{position:relative;container-type:size;margin-top:0;flex:1;min-width:0;min-height:120px;background:var(--stage);border-radius:24px;overflow:hidden;border:1px solid var(--line)}
 .stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0}
 .stage.live video{opacity:1}
+.stage.rot90 video{inset:auto;top:50%;left:50%;width:100cqh;height:100cqw;transform:translate(-50%,-50%) rotate(90deg)}
 .hold{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:24px;color:#8A95AB}
 .ctl{position:absolute;right:14px;bottom:14px;display:none;gap:8px;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .25s,transform .25s}
 .stage.live .ctl{display:flex}
@@ -243,7 +244,14 @@ function generateCode() {
 }
 
 const viewer = { ws: null, pc: null, code: "", started: false };
-const sender = { ws: null, pc: null, stream: null };
+const sender = { ws: null, pc: null, stream: null, rotate: 0 };
+
+function detectSenderRotation(stream) {
+  const isChromeOS = /\bCrOS\b/.test(navigator.userAgent);
+  const track = stream.getVideoTracks()[0];
+  const settings = track && track.getSettings ? track.getSettings() : {};
+  return isChromeOS && settings.displaySurface === "monitor" ? 90 : 0;
+}
 
 function activateTab(name) {
   document.querySelectorAll(".seg").forEach(function (s) {
@@ -346,14 +354,23 @@ stageEl.addEventListener("pointerleave", function (e) {
 document.addEventListener("fullscreenchange", showControls);
 document.addEventListener("webkitfullscreenchange", showControls);
 
+function exitFullscreenIfNeeded() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen().catch(function () {});
+  } else if (document.webkitFullscreenElement && document.webkitExitFullscreen) {
+    document.webkitExitFullscreen();
+  }
+}
+
 function closeViewerPeer() {
   hideControls();
+  exitFullscreenIfNeeded();
   if (viewer.pc) {
     viewer.pc.close();
     viewer.pc = null;
   }
   document.getElementById("video").srcObject = null;
-  document.getElementById("stage").classList.remove("live");
+  document.getElementById("stage").classList.remove("live", "rot90");
   document.getElementById("viewer").classList.remove("live");
 }
 
@@ -387,6 +404,7 @@ async function viewerOnMessage(msg) {
     await pc.setLocalDescription({ type: "offer", sdp: tuneOpus(offer.sdp) });
     viewer.ws.send(JSON.stringify({ type: "offer", sdp: pc.localDescription }));
   } else if (msg.type === "answer" && viewer.pc) {
+    document.getElementById("stage").classList.toggle("rot90", msg.rotate === 90);
     await viewer.pc.setRemoteDescription(msg.sdp);
   } else if (msg.type === "candidate" && viewer.pc) {
     try { await viewer.pc.addIceCandidate(msg.candidate); } catch (e) {}
@@ -490,6 +508,7 @@ function stopSender() {
     sender.stream.getTracks().forEach(function (t) { t.onended = null; t.stop(); });
     sender.stream = null;
   }
+  sender.rotate = 0;
   if (sender.pc) {
     sender.pc.close();
     sender.pc = null;
@@ -524,7 +543,7 @@ async function senderOnMessage(msg) {
     await pc.setRemoteDescription(msg.sdp);
     const answer = await pc.createAnswer();
     await pc.setLocalDescription({ type: "answer", sdp: tuneOpus(answer.sdp) });
-    sender.ws.send(JSON.stringify({ type: "answer", sdp: pc.localDescription }));
+    sender.ws.send(JSON.stringify({ type: "answer", sdp: pc.localDescription, rotate: sender.rotate }));
     pc.getSenders().forEach(function (s) {
       if (!s.track) return;
       const params = s.getParameters();
@@ -607,6 +626,7 @@ async function startSender() {
   }
   stream.getAudioTracks().forEach(function (t) { t.contentHint = "music"; });
   sender.stream = stream;
+  sender.rotate = detectSenderRotation(stream);
   btn.disabled = true;
   setSenderLocked(true);
   setStatus("sdot", "sstatus", "接続しています…", "");
