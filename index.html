@@ -93,7 +93,10 @@ button{font-family:inherit;color:inherit}
 .stage{position:relative;container-type:size;margin-top:0;flex:1;min-width:0;min-height:120px;background:var(--stage);border-radius:24px;overflow:hidden;border:1px solid var(--line)}
 .stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;opacity:0}
 .stage.live video{opacity:1}
-.stage.rot90 video{inset:auto;top:50%;left:50%;width:100cqh;height:100cqw;transform:translate(-50%,-50%) rotate(90deg)}
+.stage.rot90 video,.stage.rot270 video{inset:auto;top:50%;left:50%;width:100cqh;height:100cqw}
+.stage.rot90 video{transform:translate(-50%,-50%) rotate(90deg)}
+.stage.rot270 video{transform:translate(-50%,-50%) rotate(270deg)}
+.stage.rot180 video{transform:rotate(180deg)}
 .hold{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;padding:24px;color:#8A95AB}
 .ctl{position:absolute;right:14px;bottom:14px;display:none;gap:8px;opacity:0;transform:translateY(6px);pointer-events:none;transition:opacity .25s,transform .25s}
 .stage.live .ctl{display:flex}
@@ -244,13 +247,83 @@ function generateCode() {
 }
 
 const viewer = { ws: null, pc: null, code: "", started: false };
-const sender = { ws: null, pc: null, stream: null, rotate: 0 };
+const sender = { ws: null, pc: null, stream: null, rotate: 0, pending: null, probe: null, watch: null };
 
-function detectSenderRotation(stream) {
-  const isChromeOS = /\bCrOS\b/.test(navigator.userAgent);
-  const track = stream.getVideoTracks()[0];
+function senderFrameSize() {
+  const v = sender.probe;
+  if (v && v.videoWidth && v.videoHeight) return { w: v.videoWidth, h: v.videoHeight };
+  const track = sender.stream && sender.stream.getVideoTracks()[0];
   const settings = track && track.getSettings ? track.getSettings() : {};
-  return isChromeOS && settings.displaySurface === "monitor" ? 90 : 0;
+  return { w: settings.width || 0, h: settings.height || 0 };
+}
+
+function computeSenderRotation() {
+  if (!/\bCrOS\b/.test(navigator.userAgent)) return 0;
+  const track = sender.stream && sender.stream.getVideoTracks()[0];
+  const settings = track && track.getSettings ? track.getSettings() : {};
+  if (settings.displaySurface !== "monitor") return 0;
+  const f = senderFrameSize();
+  const sw = screen.width;
+  const sh = screen.height;
+  if (!f.w || !f.h || !sw || !sh) return 0;
+  const frameRatio = f.w / f.h;
+  const screenRatio = sw / sh;
+  if (Math.abs(Math.log(frameRatio)) < 0.1 || Math.abs(Math.log(screenRatio)) < 0.1) return 0;
+  if ((frameRatio > 1) === (screenRatio > 1)) return 0;
+  if (Math.abs(Math.log(frameRatio * screenRatio)) > 0.1) return 0;
+  const angle = screen.orientation && typeof screen.orientation.angle === "number" ? screen.orientation.angle : 90;
+  if (angle === 90) return 90;
+  if (angle === 270) return 270;
+  return 0;
+}
+
+function updateSenderRotation(immediate) {
+  const next = computeSenderRotation();
+  if (next === sender.rotate) {
+    sender.pending = null;
+    return;
+  }
+  if (immediate === true || next === sender.pending) {
+    sender.rotate = next;
+    sender.pending = null;
+    if (sender.ws && sender.ws.readyState === 1) {
+      sender.ws.send(JSON.stringify({ type: "rotate", rotate: next }));
+    }
+  } else {
+    sender.pending = next;
+  }
+}
+
+function startRotationWatch() {
+  stopRotationWatch();
+  const track = sender.stream.getVideoTracks()[0];
+  const probe = document.createElement("video");
+  probe.muted = true;
+  probe.playsInline = true;
+  probe.srcObject = new MediaStream([track]);
+  probe.play().catch(function () {});
+  sender.probe = probe;
+  sender.rotate = computeSenderRotation();
+  sender.pending = null;
+  sender.watch = setInterval(updateSenderRotation, 500);
+}
+
+function stopRotationWatch() {
+  if (sender.watch) {
+    clearInterval(sender.watch);
+    sender.watch = null;
+  }
+  if (sender.probe) {
+    sender.probe.srcObject = null;
+    sender.probe = null;
+  }
+  sender.pending = null;
+}
+
+function applyViewerRotation(deg) {
+  const stage = document.getElementById("stage");
+  stage.classList.remove("rot90", "rot180", "rot270");
+  if (deg === 90 || deg === 180 || deg === 270) stage.classList.add("rot" + deg);
 }
 
 function activateTab(name) {
@@ -370,7 +443,7 @@ function closeViewerPeer() {
     viewer.pc = null;
   }
   document.getElementById("video").srcObject = null;
-  document.getElementById("stage").classList.remove("live", "rot90");
+  document.getElementById("stage").classList.remove("live", "rot90", "rot180", "rot270");
   document.getElementById("viewer").classList.remove("live");
 }
 
@@ -404,8 +477,10 @@ async function viewerOnMessage(msg) {
     await pc.setLocalDescription({ type: "offer", sdp: tuneOpus(offer.sdp) });
     viewer.ws.send(JSON.stringify({ type: "offer", sdp: pc.localDescription }));
   } else if (msg.type === "answer" && viewer.pc) {
-    document.getElementById("stage").classList.toggle("rot90", msg.rotate === 90);
+    applyViewerRotation(msg.rotate);
     await viewer.pc.setRemoteDescription(msg.sdp);
+  } else if (msg.type === "rotate" && viewer.pc) {
+    applyViewerRotation(msg.rotate);
   } else if (msg.type === "candidate" && viewer.pc) {
     try { await viewer.pc.addIceCandidate(msg.candidate); } catch (e) {}
   } else if (msg.type === "peer-left") {
@@ -508,6 +583,7 @@ function stopSender() {
     sender.stream.getTracks().forEach(function (t) { t.onended = null; t.stop(); });
     sender.stream = null;
   }
+  stopRotationWatch();
   sender.rotate = 0;
   if (sender.pc) {
     sender.pc.close();
@@ -531,6 +607,7 @@ async function senderOnMessage(msg) {
     const pc = new RTCPeerConnection(ICE);
     sender.pc = pc;
     sender.stream.getTracks().forEach(function (t) { pc.addTrack(t, sender.stream); });
+    updateSenderRotation(true);
     pc.onicecandidate = function (e) {
       if (e.candidate && sender.ws && sender.ws.readyState === 1) {
         sender.ws.send(JSON.stringify({ type: "candidate", candidate: e.candidate }));
@@ -626,7 +703,7 @@ async function startSender() {
   }
   stream.getAudioTracks().forEach(function (t) { t.contentHint = "music"; });
   sender.stream = stream;
-  sender.rotate = detectSenderRotation(stream);
+  startRotationWatch();
   btn.disabled = true;
   setSenderLocked(true);
   setStatus("sdot", "sstatus", "接続しています…", "");
