@@ -247,10 +247,17 @@ const viewer = { ws: null, pc: null, code: "", started: false };
 const sender = { ws: null, pc: null, stream: null, rotate: 0 };
 
 function detectSenderRotation(stream) {
-  const isChromeOS = /\bCrOS\b/.test(navigator.userAgent);
+  if (!/\bCrOS\b/.test(navigator.userAgent)) return 0;
   const track = stream.getVideoTracks()[0];
   const settings = track && track.getSettings ? track.getSettings() : {};
-  return isChromeOS && settings.displaySurface === "monitor" ? 90 : 0;
+  if (settings.displaySurface !== "monitor") return 0;
+  if (!settings.width || !settings.height) return 0;
+  const orientation = screen.orientation && screen.orientation.type;
+  const screenIsLandscape = orientation
+    ? orientation.indexOf("landscape") === 0
+    : screen.width > screen.height;
+  const videoIsPortrait = settings.height > settings.width;
+  return screenIsLandscape && videoIsPortrait ? 90 : 0;
 }
 
 function activateTab(name) {
