@@ -118,10 +118,12 @@ button{font-family:inherit;color:inherit}
 .hold svg{width:44px;height:44px;margin-bottom:8px;opacity:.7}
 .hold .qr{display:none;width:min(168px,40cqh,60cqw);aspect-ratio:1;margin-bottom:12px;background:#fff;border-radius:12px;overflow:hidden;flex:none}
 .hold.has-qr .qr{display:block}
+.hold .qrcap{display:none;margin:0 0 14px;max-width:22em;font-size:13px;line-height:1.5;color:#C5CCDA}
+.hold.has-qr .qrcap{display:block}
 .hold.has-qr .ico{display:none}
 .hold .qr svg{display:block;width:100%;height:100%;margin:0;opacity:1}
 @container (max-height:280px){
-  .hold.has-qr .qr{display:none}
+  .hold.has-qr .qr,.hold.has-qr .qrcap{display:none}
   .hold.has-qr .ico{display:block}
 }
 .hold strong{font-size:16px;font-weight:500;color:#C5CCDA}
@@ -210,6 +212,7 @@ button{font-family:inherit;color:inherit}
       <video id="video" autoplay playsinline muted></video>
       <div class="hold" id="hold">
         <div class="qr" id="qr" role="img" aria-label="接続用のQRコード"></div>
+        <p class="qrcap">共有する端末でこのQRコードを読み取ると、コードが入力された状態で送信画面が開きます。</p>
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>
         <strong>まだ何も映っていません</strong>
         <span>送信側が共有を始めると、ここに表示されます。映像が始まったら、マウスを動かすと表示されるボタンで音を出せます。</span>
