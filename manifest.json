@@ -22,5 +22,28 @@
       "type": "image/png",
       "purpose": "any"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/1.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "コードを入れるだけで画面を共有"
+    },
+    {
+      "src": "screenshots/2.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "QRコードでも接続できます"
+    },
+    {
+      "src": "screenshots/3.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "すぐに映ります"
+    }
   ]
 }
