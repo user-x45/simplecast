@@ -140,6 +140,24 @@ button{font-family:inherit;color:inherit}
   .pill{justify-content:center}
   .actions .ghost{flex:1}
 }
+@media (max-width:560px){
+  .top{flex-wrap:nowrap;gap:8px}
+  .brand{gap:6px;font-size:17px;min-width:0;white-space:nowrap}
+  .brand .site-icon{font-size:22px}
+  .top-right{flex-wrap:nowrap;gap:6px;flex:none}
+  .install{height:36px;padding:0 12px;gap:5px;font-size:12px;white-space:nowrap}
+  .switch{padding:3px}
+  .seg{padding:6px 12px;font-size:13px}
+}
+@media (max-width:400px){
+  .install{width:36px;padding:0;justify-content:center}
+  .install span{display:none}
+}
+@media (max-width:330px){
+  .brand{font-size:15px}
+  .brand .site-icon{font-size:20px}
+  .seg{padding:6px 9px;font-size:12px}
+}
 @media (prefers-reduced-motion:reduce){
   .tile.flip,.dot.ok.pulse{animation:none}
   *{transition:none!important}
@@ -154,7 +172,7 @@ button{font-family:inherit;color:inherit}
       <span>SimpleCast</span>
     </div>
     <div class="top-right">
-      <button class="install" id="installBtn" type="button"><i class="fa-solid fa-download" aria-hidden="true"></i><span>インストール</span></button>
+      <button class="install" id="installBtn" type="button" aria-label="インストール" title="インストール"><i class="fa-solid fa-download" aria-hidden="true"></i><span>インストール</span></button>
       <div class="switch" role="tablist" aria-label="モード">
         <button class="seg" role="tab" data-tab="viewer" aria-selected="true">受信</button>
         <button class="seg" role="tab" data-tab="sender" aria-selected="false">送信</button>
