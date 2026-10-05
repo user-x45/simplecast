@@ -134,8 +134,6 @@ button{font-family:inherit;color:inherit}
 }
 .stage.live .hold{display:none}
 
-.note{margin:clamp(12px,2.4vh,20px) 0 0;color:var(--sub);font-size:13px;max-width:38em}
-
 @media (max-height:640px){
   .lead{display:none}
   .hold .hint{display:none}
@@ -243,7 +241,6 @@ button{font-family:inherit;color:inherit}
         <div class="pill"><span class="dot" id="sdot"></span><span id="sstatus">待機中</span></div>
         <button class="main" id="go">共有を開始</button>
       </div>
-      <p class="note">PCのブラウザで利用できます。スマートフォンのブラウザは、画面の送信に対応していないことが多いです。</p>
     </div>
   </section>
 </div>
@@ -773,7 +770,22 @@ async function checkCode(code) {
   }
 }
 
+function isSupportedBrowser() {
+  const ua = navigator.userAgent;
+  if (/Android|iPhone|iPad|iPod|Mobile|Tablet/.test(ua)) return false;
+  if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return false;
+  if (!/Windows NT|Macintosh|Linux|X11|CrOS/.test(ua)) return false;
+  if (/Firefox\/\d/.test(ua)) return !/Seamonkey/i.test(ua);
+  if (/Chrome\/\d/.test(ua)) return true;
+  if (/Version\/\d/.test(ua) && /Safari\/\d/.test(ua)) return true;
+  return false;
+}
+
 async function startSender() {
+  if (!isSupportedBrowser()) {
+    setStatus("sdot", "sstatus", "このブラウザでは画面を共有できません。対応ブラウザ（Chrome、Edge、Safari、Firefox、Opera、その他Chromium系）をPCでご利用ください", "ng");
+    return;
+  }
   const code = getSenderCode();
   if (!/^[A-Z0-9]{6}$/.test(code)) {
     setStatus("sdot", "sstatus", "6文字のコードを入力してください", "ng");
